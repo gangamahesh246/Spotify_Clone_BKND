@@ -1,29 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Song = require('../models/Song');
-const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const redisClient = require('../utils/redis');
-
-const s3 = new S3Client({
-    region: process.env.AWS_REGION,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    },
-});
-
-
-
-// Helper: Generate Presigned URL
-const generatePresignedUrl = async (key) => {
-    if (!key) return null;
-    const command = new GetObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: key,
-    });
-    return getSignedUrl(s3, command, { expiresIn: 3600 });
-};
+const { s3, generatePresignedUrl } = require('../utils/s3');
 
 // --- REDIS CACHING ROUTES ---
 
@@ -201,7 +181,7 @@ router.post('/:id/like', async (req, res) => {
 // GET /songs - Fetch Songs with Caching & Pagination
 router.get('/', async (req, res) => {
     try {
-        const { cursor, limit = 20, category, search } = req.query;
+        const { cursor, limit = 20, category, search, albumMovie } = req.query;
         const limitInt = parseInt(limit);
         const cacheKey = `songs:${JSON.stringify(req.query)}`;
 
@@ -224,6 +204,7 @@ router.get('/', async (req, res) => {
 
         let query = {};
         if (category) query.category = category;
+        if (albumMovie) query.albumMovie = albumMovie;
         if (search) {
             const searchRegex = new RegExp(search, 'i');
             query.$or = [
